@@ -11,9 +11,12 @@ edit. `apply.py` refuses all of these.
 
 ## Remove
 
-Put the SKILL.md paths of skills no session read under `remove`. Every file in
-the folder goes into the backup, the folder is deleted, and the installer's lock
-record is dropped. `restore.py` brings the whole folder back.
+Unused means no session in this machine's last 90 days of logs read the skill.
+It may be used elsewhere or rarely, so show the list and let the user pick. Put
+the SKILL.md paths they chose under `remove`. Every file in the folder goes into
+the backup, the folder is deleted, and the installer's lock record is dropped.
+`restore.py` brings the whole folder back. Skills the user wrote are refused;
+those are deleted by hand if ever.
 
 ## Trim
 

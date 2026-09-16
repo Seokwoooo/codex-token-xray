@@ -285,6 +285,21 @@ class UpstreamPolicy(Fixture):
         self.assertTrue((unused.parent / "scripts" / "run.sh").is_file())
         self.assertIn("firecrawl-shop", json.loads(lock.read_text())["skills"])
 
+    def test_own_skills_are_never_removed_and_boundary_lines_are_flagged(self):
+        mine = self.skill("mine")
+        plan_path = self.root / "remove-mine.json"
+        plan_path.write_text(json.dumps({"remove": [str(mine)]}))
+        code, result = self.invoke(apply, "--plan", str(plan_path), "--apply", "--codex-home", str(self.home))
+        self.assertEqual(code, 1)
+        self.assertIn("written here", result["error"])
+        self.assertTrue(mine.is_file())
+        agents = self.work / "AGENTS.md"
+        agents.write_text("Intro paragraph.\nNever push to production.\nUse pnpm.\n")
+        edits = [{"path": str(agents), "sha256": archive.sha256_path(agents), "content": "Use pnpm.\n", "reason": "trim"}]
+        code, result = self.invoke(apply, "--plan", str(self.plan(edits)), "--codex-home", str(self.home))
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["files"][0]["boundary_lines_dropped"], ["Never push to production."])
+
     def test_scan_lists_unused_and_only_your_bodies(self):
         mine = self.skill("mine", body="Body line.\n" * 700)
         theirs = self.skill("diagnosing-bugs", body="Body line.\n" * 700)

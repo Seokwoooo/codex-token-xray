@@ -12,8 +12,9 @@ Plan:
    "remove": ["/abs/path/to/unused-skill/SKILL.md"]}
 
 Only skills you wrote can be edited. Skills made by other people and Codex's own
-skills and plugins are refused. `remove` deletes a whole skill folder you no
-longer use; the backup keeps every file and restore.py puts it back.
+skills and plugins are refused. `remove` deletes a skill folder that was installed
+from elsewhere and can be reinstalled; the backup keeps every file and restore.py
+puts it back. Skills written here are never removed by this tool.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ import argparse
 import difflib
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -37,6 +39,11 @@ from txray.native import classify, is_native_path, native_names  # noqa: E402
 from txray.paths import is_within, local_key  # noqa: E402
 
 AGENTS_NAMES = ("AGENTS.md", "AGENTS.override.md")
+# Lines an AGENTS.md edit must not silently drop. Reworded lines show up here too, so the agent looks.
+BOUNDARY = re.compile(
+    r"prod(uction)?\b|deploy|release|secret|token|credential|password|api[ _-]?key|\.env\b|rm\s+-rf|delet|drop\s+(table|database)|"
+    r"force[- ]push|\bpush\b|billing|payment|customer|pii|personal data|never|do not|don't|must not|ask (for|before)|"
+    r"운영|배포|릴리스|비밀|토큰|자격|비밀번호|삭제|푸시|결제|고객|개인정보|절대|하지 마|금지|승인", re.IGNORECASE)
 
 
 def prepare(plan: dict, home: Path) -> dict:
@@ -101,10 +108,13 @@ def prepare(plan: dict, home: Path) -> dict:
             if after == before:
                 raise ValueError(f"content is unchanged: {path}")
             saved = approx_tokens(before.decode("utf-8", errors="replace")) - approx_tokens(value)
+            dropped = [line for line in before.decode("utf-8", errors="replace").splitlines()
+                       if BOUNDARY.search(line) and line.strip() and line.strip() not in value]
         else:
             raise ValueError(f"only SKILL.md and AGENTS.md files can be edited: {path}")
         items.append({"kind": "edit", "path": path, "before": before, "after": after,
-                      "reason": edit["reason"], "tokens_saved": saved})
+                      "reason": edit["reason"], "tokens_saved": saved,
+                      "boundary_lines_dropped": dropped if path.name in AGENTS_NAMES else []})
 
     for item in creates:
         if not isinstance(item, dict) or not isinstance(item.get("content"), str):
@@ -127,6 +137,8 @@ def prepare(plan: dict, home: Path) -> dict:
         protection = classify(path, home, natives)
         if protection["kind"] == "native":
             raise ValueError(f"{path}: Codex native skill. Not removed by this tool.")
+        if protection["provenance"] == "local":
+            raise ValueError(f"{path}: this skill was written here and cannot be reinstalled. Delete it by hand if you really want to.")
         folder = path.parent
         if folder in remove_dirs:
             continue
@@ -188,6 +200,7 @@ def main(argv=None) -> int:
             after_text = item["after"].decode("utf-8-sig", errors="replace").splitlines(True)
             result["files"].append({"path": str(item["path"]), "kind": item["kind"], "reason": item["reason"],
                                     "tokens_saved_estimate": item["tokens_saved"],
+                                    "boundary_lines_dropped": item.get("boundary_lines_dropped", []),
                                     "diff": "".join(difflib.unified_diff(before_text, after_text, fromfile=str(item["path"]), tofile=str(item["path"])))})
         if args.apply:
             changes = [(str(i["path"]), {"edit": "modify", "create": "create", "remove": "delete"}[i["kind"]]) for i in items]

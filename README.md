@@ -32,7 +32,7 @@ This is what it found in 12 real sessions on one Mac.
 
 Three moves and nothing else.
 
-- Removes skills that no session read. The whole folder goes into a zip backup first and one command puts it back.
+- Lists skills that no session read in the last 90 days. Remove the ones you pick. The whole folder goes into a zip backup first and one command puts it back. Skills you wrote yourself are never removed by the tool.
 - Trims your own long skills. What every run needs stays in SKILL.md and the rest moves into `references` files. Nothing is deleted.
 - Trims the project's AGENTS.md the same way.
 
