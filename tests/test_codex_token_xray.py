@@ -250,59 +250,42 @@ class UpstreamPolicy(Fixture):
         result = native.classify(installed, self.home, names)
         self.assertEqual((result["provenance"], result["source"]), ("upstream", "remotion-dev/skills"))
 
-    def test_upstream_body_edit_needs_allow_flag_and_fork_works(self):
+    def test_other_peoples_skills_are_refused(self):
         upstream = self.skill("diagnosing-bugs", body="Long body.\n" * 300)
         lock = self.user / ".agents" / ".skill-lock.json"
         lock.write_text(json.dumps({"skills": {"diagnosing-bugs": {"source": "mattpocock/skills"}}}))
         original = upstream.read_bytes()
         edits = [{"path": str(upstream), "sha256": archive.sha256_path(upstream), "body": "short", "reason": "r"}]
-        code, result = self.invoke(apply, "--plan", str(self.plan(edits)), "--codex-home", str(self.home))
+        code, result = self.invoke(apply, "--plan", str(self.plan(edits)), "--apply", "--codex-home", str(self.home))
         self.assertEqual(code, 1)
-        self.assertIn("maintained elsewhere", result["error"])
-        plan_path = self.plan(edits)
-        value = json.loads(plan_path.read_text()); value["allow_upstream"] = True; plan_path.write_text(json.dumps(value))
-        code, result = self.invoke(apply, "--plan", str(plan_path), "--codex-home", str(self.home))
-        self.assertEqual(code, 0, result)
+        self.assertIn("not yours", result["error"])
         self.assertEqual(upstream.read_bytes(), original)
-        fork_plan = self.root / "fork.json"
-        fork_plan.write_text(json.dumps({"fork": [{"path": str(upstream), "name": "diagnosing-bugs-lite",
-                                                   "body": "Core steps only.", "reason": "shorter fork"}]}))
-        code, result = self.invoke(apply, "--plan", str(fork_plan), "--apply", "--codex-home", str(self.home))
-        self.assertEqual(code, 0, result)
-        forked = self.user / ".agents" / "skills" / "diagnosing-bugs-lite" / "SKILL.md"
-        self.assertTrue(forked.is_file())
-        self.assertEqual(read_skill(forked)["name"], "diagnosing-bugs-lite")
-        self.assertIn("Core steps only.", forked.read_text())
-        self.assertEqual(upstream.read_bytes(), original)
-        self.assertTrue(any("disable" in n for n in result["notes"]))
-        code, restored = self.invoke(restore, result["backup"]["backup"], "--yes")
-        self.assertEqual(code, 0, restored)
-        self.assertFalse(forked.exists())
 
-    def test_disable_appends_config_and_refuses_native(self):
-        upstream = self.skill("firecrawl-shop")
+    def test_remove_backs_up_deletes_and_restores_a_skill(self):
+        unused = self.skill("firecrawl-shop")
+        (unused.parent / "scripts").mkdir()
+        (unused.parent / "scripts" / "run.sh").write_text("echo hi\n")
+        lock = self.user / ".agents" / ".skill-lock.json"
+        lock.write_text(json.dumps({"skills": {"firecrawl-shop": {"source": "firecrawl/skills"}, "keep": {"source": "x/y"}}}))
         native_skill = self.skill("imagegen", parent=self.home / "skills" / ".system")
-        (self.home / "config.toml").write_text('model = "gpt-6-astra"\n')
-        plan_path = self.root / "disable.json"
-        plan_path.write_text(json.dumps({"disable": [str(upstream)]}))
-        code, result = self.invoke(apply, "--plan", str(plan_path), "--apply", "--codex-home", str(self.home))
-        self.assertEqual(code, 0, result)
-        text = (self.home / "config.toml").read_text()
-        self.assertIn("[[skills.config]]", text)
-        self.assertIn("enabled = false", text)
-        rules = config.get(config.load_config(self.home), "skills.config")
-        self.assertEqual([local_key(r["path"]) for r in rules], [local_key(str(upstream))])  # TOML-escaped on Windows
-        self.assertFalse(rules[0]["enabled"])
-        plan_path.write_text(json.dumps({"disable": [str(native_skill)]}))
+        plan_path = self.root / "remove.json"
+        plan_path.write_text(json.dumps({"remove": [str(native_skill)]}))
         code, result = self.invoke(apply, "--plan", str(plan_path), "--codex-home", str(self.home))
         self.assertEqual(code, 1)
         self.assertIn("native", result["error"].lower())
-        plan_path.write_text(json.dumps({"disable": [str(upstream)]}))
-        code, result = self.invoke(apply, "--plan", str(plan_path), "--codex-home", str(self.home))
-        self.assertEqual(code, 1)
-        self.assertIn("already listed", result["error"])
+        plan_path.write_text(json.dumps({"remove": [str(unused)]}))
+        code, result = self.invoke(apply, "--plan", str(plan_path), "--apply", "--codex-home", str(self.home))
+        self.assertEqual(code, 0, result)
+        self.assertFalse(unused.parent.exists())
+        self.assertEqual(list(json.loads(lock.read_text())["skills"]), ["keep"])
+        self.assertTrue(result["seal"]["sealed"])
+        code, restored = self.invoke(restore, result["backup"]["backup"], "--yes")
+        self.assertEqual(code, 0, restored)
+        self.assertTrue(unused.is_file())
+        self.assertTrue((unused.parent / "scripts" / "run.sh").is_file())
+        self.assertIn("firecrawl-shop", json.loads(lock.read_text())["skills"])
 
-    def test_scan_separates_own_upstream_and_unused(self):
+    def test_scan_lists_unused_and_only_your_bodies(self):
         mine = self.skill("mine", body="Body line.\n" * 700)
         theirs = self.skill("diagnosing-bugs", body="Body line.\n" * 700)
         unused = self.skill("firecrawl-shop", desc="Shop with Firecrawl. " * 3)
@@ -313,9 +296,8 @@ class UpstreamPolicy(Fixture):
         report = xray.run(self.args())
         cands = report["trim"]["candidates"]
         self.assertEqual([c["name"] for c in cands["bodies"]], ["mine"])
-        self.assertEqual([c["name"] for c in cands["upstream_bodies"]], ["diagnosing-bugs"])
-        self.assertEqual([c["name"] for c in cands["unused_upstream"]], ["firecrawl-shop"])
-        self.assertIn("Upstream", xray.summary_text(report, Path("/tmp/x.json")))
+        self.assertEqual([(c["name"], c["yours"]) for c in cands["unused"]], [("firecrawl-shop", False)])
+        self.assertIn("Unused", xray.summary_text(report, Path("/tmp/x.json")))
 
 
 class Trim(Fixture):

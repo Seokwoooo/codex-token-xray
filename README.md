@@ -28,25 +28,18 @@ This is what it found in 12 real sessions on one Mac.
 - While you work, the results that tools send back take more than half. Every file read in full lands in the context as is.
 - One skill's description costs 39 tokens per session. Its body was read 19 times and cost 36,000 tokens. Trimming the body is what pays.
 
-## What it trims
+## What it does about it
 
-- Long skill descriptions
-- Long skill bodies that get read often. What every run needs stays. The rest moves into `references` files. Nothing is deleted.
-- The project's AGENTS.md
+Three moves and nothing else.
 
-It shows the diff before changing anything and asks. It makes a zip backup and
-you can undo at any time.
+- Removes skills that no session read. The whole folder goes into a zip backup first and one command puts it back.
+- Trims your own long skills. What every run needs stays in SKILL.md and the rest moves into `references` files. Nothing is deleted.
+- Trims the project's AGENTS.md the same way.
 
-Skills made by other people, whether installed from GitHub or copied from
-openai/skills, are not edited in place. Their authors keep tuning them and an
-update would overwrite the edit. The report shows which of them your sessions
-never read so you can switch those off, and a skill you use every day can be
-forked under a new name with a shorter body while the original stays as is.
-
-## What it never touches
-
-- Codex built-in skills and plugins. computer-use, sites and their kind.
-- Model, approval, sandbox and MCP settings.
+It shows the diff before changing anything and asks once. Skills made by other
+people and Codex's own skills and plugins are never edited. Their authors keep
+tuning them and an update would overwrite the edit. If you never use one, the
+report says so and you can remove it.
 
 ## Can you trust the numbers
 

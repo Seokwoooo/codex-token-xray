@@ -36,17 +36,16 @@ log, mostly tool schemas. It is not user-editable.
   show up under `tool_output` and are attributed in `usage.skills`.
 - `agents_md`: AGENTS.md text loaded for the project.
 
-## What can be trimmed
+## What can be changed
 
-`trim.candidates.descriptions`: editable catalog entries over 200 characters.
-`trim.candidates.bodies`: editable skills whose body exceeds 1,500 estimated
-tokens and that were actually read in the scanned sessions, ranked by tokens
-spent. `trim.candidates.agents_md`: loaded AGENTS.md files over 2,000 tokens.
-These thresholds are review heuristics, not limits.
+`trim.candidates.unused`: skills in the catalog that no scanned session read.
+`yours` says whether the user wrote it. `trim.candidates.bodies` and
+`trim.candidates.descriptions`: the user's own skills over 1,500 estimated body
+tokens or 200 description characters. `trim.candidates.agents_md`: loaded
+AGENTS.md files over 2,000 tokens. Thresholds are review heuristics.
 
-`protection.kind` is `native` or `editable`. Native is never edited. Editable
-entries carry `provenance`: `local`, `upstream` (installer lock found), or
-`linked-checkout`. Always repeat the `caveat` for upstream skills.
+`protection.kind` is `native` or `editable`; `provenance` is `local`,
+`upstream` or `linked-checkout`. Only `local` skills are ever edited.
 
 ## Completion record
 
