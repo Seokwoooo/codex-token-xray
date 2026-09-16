@@ -34,7 +34,7 @@ This is a scan of twelve real sessions on one machine:
 
 ```text
 Sessions    12 parsed from ~/.codex | models gpt-5.6-luna, gpt-5.6-sol, gpt-6-astra
-Measured    sum over 2,552 model calls: input 325,526,989 | cached 315,016,960 | net new 10,510,029 | output 1,594,600
+Measured    sum over 2,552 model calls: input 325,526,989 | cached 315,016,960 | net new 10,510,029 | output 1,594,600 (reasoning 670,471)
             peak context median 210,429 tokens | 22 compactions
 Startup     33,469 tokens before any work (median of 3 fresh sessions)
             base 5,318 | developer 13,527 (app-context 11,992) | skills catalog 5,879 | unattributed 13,710
@@ -45,21 +45,26 @@ Where it goes (estimated by size, per session average)
                31,407    7.9%  Codex developer instructions
                14,337    3.6%  Codex base instructions
                 6,067    1.5%  skills catalog
-            estimate tracks measured growth at 0.848 over 34 windows
+            estimate tracks measured growth at 0.848 (range 0.471..1.026) over 34 windows
 Catalog     64 skills | 5,234 tokens in prompt | budget 5,440 tokens (95% used, 0 cut)
+            editable descriptions 28 = 1,566 tokens | native 36 = 2,406 tokens (never edited)
 Skill bodies read in these sessions
-              106,207  diagnosing-bugs | 19x | editable
-               40,087  swiftui-pro | 17x | editable
-               32,780  sites-building | 6x | native
+               36,436  diagnosing-bugs | 19x | editable
+               31,608  sites-building | 6x | native
+               12,545  imagegen | 3x | native
+               11,771  firecrawl | 3x | editable
+               11,351  motion | 4x | editable
 Largest tool output 16,539 tokens | exec | sed -n '32,285p' .../mascot.js
             Codex already truncated 48 outputs (original 5,577,685 tokens)
 Trim        10 descriptions | 16 skill bodies | 0 AGENTS.md files worth a look
 ```
 
+![Where the context went in 12 real sessions](docs/where-tokens-go-en.svg)
+
 Two things stand out on most machines. Tool outputs take more than half of the
 context. And the skills catalog is small next to the skill bodies that get read
-over and over. One skill above cost 106,207 tokens in nineteen reads. Its
-description costs 40 tokens per session.
+over and over. One skill above cost 36,436 tokens in nineteen reads. Its
+description costs 39 tokens per session.
 
 ## Measured or estimated
 

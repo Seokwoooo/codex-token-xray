@@ -146,6 +146,10 @@ class Parsing(Fixture):
         self.assertEqual(parsed["skill_invocations"]["personal"]["explicit"], 1)
         self.assertEqual(parsed["skill_invocations"]["personal"]["implicit"], 1)
         self.assertEqual(parsed["skill_invocations"]["imagegen"]["implicit"], 1)
+        body_cap = (len(personal.read_bytes()) + 3) // 4
+        # explicit = whole <skill> message (body plus a small wrapper); implicit is capped at the body size
+        self.assertLessEqual(parsed["skill_invocations"]["personal"]["tokens"], body_cap * 2 + 64)
+        self.assertGreater(parsed["skill_invocations"]["personal"]["tokens"], body_cap)
         self.assertEqual(parsed["truncated_outputs"], {"count": 1, "original_tokens": 5000})
         self.assertNotIn(str(personal.resolve()), parsed["file_reads"])  # one read is not repeated
         self.assertEqual(len(parsed["catalog"]["entries"]), 2)

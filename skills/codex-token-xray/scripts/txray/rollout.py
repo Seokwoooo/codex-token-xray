@@ -101,6 +101,19 @@ def _existing(raw_path: str) -> str | None:
     return None
 
 
+_FILE_TOKENS: dict[str, int] = {}
+
+
+def _file_tokens(path: str) -> int:
+    """Estimated tokens of a file on disk, cached; caps what one read can be charged."""
+    if path not in _FILE_TOKENS:
+        try:
+            _FILE_TOKENS[path] = (len(Path(path).read_bytes()) + 3) // 4
+        except OSError:
+            _FILE_TOKENS[path] = 1 << 30
+    return _FILE_TOKENS[path]
+
+
 def _item(category, text_bytes, **extra) -> dict:
     item = {"category": category, "bytes": text_bytes, "tokens": (text_bytes + 3) // 4}
     item.update(extra)
@@ -291,7 +304,8 @@ def parse(path: Path, keep_items: bool = False) -> dict | None:
                 continue
             record = invocations.setdefault(name, {"explicit": 0, "implicit": 0, "tokens": 0, "path": None})
             record["implicit"] += 1
-            record["tokens"] += item["tokens"] // max(1, len(call["skill_paths"]))
+            share = item["tokens"] // max(1, len(call["skill_paths"]))
+            record["tokens"] += min(share, _file_tokens(skill_path))
             record["path"] = record["path"] or skill_path
         current().add(item)
         tool_outputs.append({"tool": tool, "tokens": item["tokens"], "head": item["head"],
