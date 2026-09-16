@@ -1,0 +1,4 @@
+interface:
+  display_name: "codex-token-xray"
+  short_description: "See where Codex context tokens go and trim safely"
+  default_prompt: "Use $codex-token-xray to measure where my Codex context tokens go and report what to trim."
