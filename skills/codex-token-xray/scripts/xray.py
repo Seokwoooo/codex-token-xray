@@ -163,8 +163,11 @@ def run(args) -> dict:
                     and row["protection"]["provenance"] == "local":
                 description_candidates.append({k: row[k] for k in ("name", "path", "description_chars", "tokens", "status")}
                                               | {"caveat": row["protection"]["caveat"], "provenance": row["protection"]["provenance"]})
+    listed = {local_key(r["path"]) for r in catalog["skills"]} if catalog else None
     body_candidates = []
     for name, row in invoked.items():
+        if listed is not None and (not row.get("path") or local_key(row["path"]) not in listed):
+            continue  # switched off or gone: costs nothing until it is back in the catalog
         if row["on_disk"] and row["protection"] and row["protection"]["provenance"] == "local" \
                 and (row["body_tokens"] or 0) > BODY_REVIEW_TOKENS:
             body_candidates.append({"name": name, "path": row["path"], "body_tokens": row["body_tokens"],
@@ -177,7 +180,7 @@ def run(args) -> dict:
     if catalog:
         for row in catalog["skills"]:
             prot = row["protection"]
-            if prot["kind"] == "native" or row["name"] in invoked:
+            if prot["kind"] == "native" or prot.get("provenance") == "missing-file" or row["name"] in invoked:
                 continue
             unused.append({"name": row["name"], "path": row["path"], "source": prot.get("source"),
                            "yours": prot.get("provenance") == "local", "description_tokens": row["tokens"]})
