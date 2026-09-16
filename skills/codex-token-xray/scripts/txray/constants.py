@@ -57,3 +57,15 @@ TRUNCATION_WARNING = (
 REMOVAL_WARNING_PREFIX = "Exceeded skills context budget. All skill descriptions were removed and"
 
 LATEST_KNOWN_CODEX = "0.154.0"
+
+# github.com/openai/skills, skills/.curated on 2026-09-16. Copies installed with $skill-installer
+# carry no lock record, so the names are pinned here. Update when the list changes.
+OPENAI_CURATED_SKILLS = frozenset("""
+aspnet-core chatgpt-apps cli-creator cloudflare-deploy define-goal figma-code-connect-components
+figma-create-design-system-rules figma-create-new-file figma-generate-design figma-generate-library
+figma-implement-design figma-use figma gh-address-comments gh-fix-ci hatch-pet jupyter-notebook linear
+migrate-to-codex netlify-deploy notion-knowledge-capture notion-meeting-intelligence
+notion-research-documentation notion-spec-to-implementation openai-docs pdf playwright-interactive
+playwright render-deploy screenshot security-best-practices security-ownership-map security-threat-model
+sentry speech transcribe vercel-deploy winui-app yeet
+""".split())

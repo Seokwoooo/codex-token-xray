@@ -159,17 +159,39 @@ def run(args) -> dict:
     description_candidates = []
     if catalog:
         for row in catalog["skills"]:
-            if row["protection"]["editable"] and row["description_chars"] > DESCRIPTION_REVIEW_CHARS:
+            if row["protection"]["editable"] and row["description_chars"] > DESCRIPTION_REVIEW_CHARS \
+                    and row["protection"]["provenance"] == "local":
                 description_candidates.append({k: row[k] for k in ("name", "path", "description_chars", "tokens", "status")}
                                               | {"caveat": row["protection"]["caveat"], "provenance": row["protection"]["provenance"]})
-    body_candidates = []
+    body_candidates, upstream_bodies = [], []
     for name, row in invoked.items():
-        if row["on_disk"] and row["protection"] and row["protection"]["editable"] and (row["body_tokens"] or 0) > BODY_REVIEW_TOKENS:
-            body_candidates.append({"name": name, "path": row["path"], "body_tokens": row["body_tokens"],
-                                    "body_lines": row["body_lines"], "invocations": row["explicit"] + row["implicit"],
-                                    "tokens_spent": row["tokens"], "sessions": row["sessions"],
-                                    "provenance": row["protection"]["provenance"], "caveat": row["protection"]["caveat"]})
+        if not (row["on_disk"] and row["protection"] and row["protection"]["editable"]):
+            continue
+        if (row["body_tokens"] or 0) <= BODY_REVIEW_TOKENS:
+            continue
+        entry = {"name": name, "path": row["path"], "body_tokens": row["body_tokens"],
+                 "body_lines": row["body_lines"], "invocations": row["explicit"] + row["implicit"],
+                 "tokens_spent": row["tokens"], "sessions": row["sessions"],
+                 "provenance": row["protection"]["provenance"], "caveat": row["protection"]["caveat"]}
+        if row["protection"]["provenance"] == "local":
+            body_candidates.append(entry)
+        else:
+            entry["advice"] = "maintained elsewhere: keep it, or fork it under a new name and disable the original"
+            upstream_bodies.append(entry)
     body_candidates.sort(key=lambda r: -r["tokens_spent"])
+    upstream_bodies.sort(key=lambda r: -r["tokens_spent"])
+
+    # Upstream skills that sat in the catalog but were never read: disabling them removes both costs.
+    read_names = set(invoked)
+    unused_upstream = []
+    if catalog:
+        for row in catalog["skills"]:
+            prot = row["protection"]
+            if prot.get("provenance") == "upstream" and row["name"] not in read_names:
+                unused_upstream.append({"name": row["name"], "path": row["path"], "source": prot.get("source"),
+                                        "description_tokens": row["tokens"],
+                                        "advice": "never read in the scanned sessions: disable it if you do not use it"})
+        unused_upstream.sort(key=lambda r: -r["description_tokens"])
 
     global_info = agents_md.global_instructions(home)
     chain = agents_md.project_chain(cwd, cfg)
@@ -189,7 +211,10 @@ def run(args) -> dict:
         "thresholds": {"description_chars": DESCRIPTION_REVIEW_CHARS, "body_tokens": BODY_REVIEW_TOKENS,
                        "agents_md_tokens": AGENTS_REVIEW_TOKENS,
                        "meaning": "review heuristics, not limits; the report never claims a saving before new sessions confirm it"},
-        "candidates": {"descriptions": description_candidates, "bodies": body_candidates, "agents_md": agents_candidates},
+        "candidates": {"descriptions": description_candidates, "bodies": body_candidates,
+                       "upstream_bodies": upstream_bodies, "unused_upstream": unused_upstream,
+                       "agents_md": agents_candidates},
+        "policy": "bodies lists only skills you wrote; upstream skills are kept, forked under a new name or disabled",
     }
     surface = [c["path"] for c in description_candidates] + [c["path"] for c in body_candidates] + [a["path"] for a in agents_candidates]
 
@@ -266,7 +291,9 @@ def summary_text(report: dict, out_path: Path) -> str:
         r = agg["repeated_file_references"][0]
         lines.append(f"Repeated    {r['path']} referenced in {r['calls']} calls of one session")
     t = report["trim"]["candidates"]
-    lines.append(f"Trim        {len(t['descriptions'])} descriptions | {len(t['bodies'])} skill bodies | {len(t['agents_md'])} AGENTS.md files worth a look")
+    lines.append(f"Trim        {len(t['descriptions'])} descriptions | {len(t['bodies'])} of your own skill bodies | {len(t['agents_md'])} AGENTS.md files worth a look")
+    if t["upstream_bodies"] or t["unused_upstream"]:
+        lines.append(f"Upstream    {len(t['upstream_bodies'])} long bodies read here (keep or fork, never edit in place) | {len(t['unused_upstream'])} never read (disable if unused)")
     lines.append(f"Report      {out_path}")
     return "\n".join(lines)
 

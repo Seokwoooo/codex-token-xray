@@ -221,6 +221,88 @@ class Protection(Fixture):
         self.assertEqual(native.classify(local, self.home, set())["provenance"], "local")
 
 
+class UpstreamPolicy(Fixture):
+    def test_curated_apache_and_community_skills_are_upstream(self):
+        names = native.native_names(self.home)
+        curated = self.skill("hatch-pet", parent=self.home / "skills")
+        self.assertEqual(native.classify(curated, self.home, names)["provenance"], "upstream")
+        apache = self.skill("some-openai-thing", parent=self.home / "skills")
+        (apache.parent / "LICENSE.txt").write_text("Apache License\nVersion 2.0, January 2004\n")
+        (apache.parent / "agents").mkdir()
+        (apache.parent / "agents" / "openai.yaml").write_text("interface:\n  display_name: x\n")
+        self.assertEqual(native.classify(apache, self.home, names)["provenance"], "upstream")
+        community = self.skill("motion", body="Body.\n\n## Contributing\n- Open an issue: https://github.com/someone/claude-skills/issues\n")
+        result = native.classify(community, self.home, names)
+        self.assertEqual(result["provenance"], "upstream")
+        self.assertIn("github.com/someone/claude-skills", result["source"])
+        self.assertEqual(native.classify(self.skill("mine"), self.home, names)["provenance"], "local")
+
+    def test_upstream_body_edit_needs_allow_flag_and_fork_works(self):
+        upstream = self.skill("diagnosing-bugs", body="Long body.\n" * 300)
+        lock = self.user / ".agents" / ".skill-lock.json"
+        lock.write_text(json.dumps({"skills": {"diagnosing-bugs": {"source": "mattpocock/skills"}}}))
+        original = upstream.read_bytes()
+        edits = [{"path": str(upstream), "sha256": archive.sha256_path(upstream), "body": "short", "reason": "r"}]
+        code, result = self.invoke(apply, "--plan", str(self.plan(edits)), "--codex-home", str(self.home))
+        self.assertEqual(code, 1)
+        self.assertIn("maintained elsewhere", result["error"])
+        plan_path = self.plan(edits)
+        value = json.loads(plan_path.read_text()); value["allow_upstream"] = True; plan_path.write_text(json.dumps(value))
+        code, result = self.invoke(apply, "--plan", str(plan_path), "--codex-home", str(self.home))
+        self.assertEqual(code, 0, result)
+        self.assertEqual(upstream.read_bytes(), original)
+        fork_plan = self.root / "fork.json"
+        fork_plan.write_text(json.dumps({"fork": [{"path": str(upstream), "name": "diagnosing-bugs-lite",
+                                                   "body": "Core steps only.", "reason": "shorter fork"}]}))
+        code, result = self.invoke(apply, "--plan", str(fork_plan), "--apply", "--codex-home", str(self.home))
+        self.assertEqual(code, 0, result)
+        forked = self.user / ".agents" / "skills" / "diagnosing-bugs-lite" / "SKILL.md"
+        self.assertTrue(forked.is_file())
+        self.assertEqual(read_skill(forked)["name"], "diagnosing-bugs-lite")
+        self.assertIn("Core steps only.", forked.read_text())
+        self.assertEqual(upstream.read_bytes(), original)
+        self.assertTrue(any("disable" in n for n in result["notes"]))
+        code, restored = self.invoke(restore, result["backup"]["backup"], "--yes")
+        self.assertEqual(code, 0, restored)
+        self.assertFalse(forked.exists())
+
+    def test_disable_appends_config_and_refuses_native(self):
+        upstream = self.skill("firecrawl-shop")
+        native_skill = self.skill("imagegen", parent=self.home / "skills" / ".system")
+        (self.home / "config.toml").write_text('model = "gpt-6-astra"\n')
+        plan_path = self.root / "disable.json"
+        plan_path.write_text(json.dumps({"disable": [str(upstream)]}))
+        code, result = self.invoke(apply, "--plan", str(plan_path), "--apply", "--codex-home", str(self.home))
+        self.assertEqual(code, 0, result)
+        text = (self.home / "config.toml").read_text()
+        self.assertIn("[[skills.config]]", text)
+        self.assertIn(str(upstream), text)
+        self.assertIn("enabled = false", text)
+        plan_path.write_text(json.dumps({"disable": [str(native_skill)]}))
+        code, result = self.invoke(apply, "--plan", str(plan_path), "--codex-home", str(self.home))
+        self.assertEqual(code, 1)
+        self.assertIn("native", result["error"].lower())
+        plan_path.write_text(json.dumps({"disable": [str(upstream)]}))
+        code, result = self.invoke(apply, "--plan", str(plan_path), "--codex-home", str(self.home))
+        self.assertEqual(code, 1)
+        self.assertIn("already listed", result["error"])
+
+    def test_scan_separates_own_upstream_and_unused(self):
+        mine = self.skill("mine", body="Body line.\n" * 700)
+        theirs = self.skill("diagnosing-bugs", body="Body line.\n" * 700)
+        unused = self.skill("firecrawl-shop", desc="Shop with Firecrawl. " * 3)
+        lock = self.user / ".agents" / ".skill-lock.json"
+        lock.write_text(json.dumps({"skills": {"diagnosing-bugs": {"source": "mattpocock/skills"},
+                                               "firecrawl-shop": {"source": "firecrawl/skills"}}}))
+        self.rollout([mine, theirs, unused], reads=[mine, theirs])
+        report = xray.run(self.args())
+        cands = report["trim"]["candidates"]
+        self.assertEqual([c["name"] for c in cands["bodies"]], ["mine"])
+        self.assertEqual([c["name"] for c in cands["upstream_bodies"]], ["diagnosing-bugs"])
+        self.assertEqual([c["name"] for c in cands["unused_upstream"]], ["firecrawl-shop"])
+        self.assertIn("Upstream", xray.summary_text(report, Path("/tmp/x.json")))
+
+
 class Trim(Fixture):
     def test_scan_report_lists_candidates_and_protection(self):
         personal = self.skill(desc="Personal workflow. " * 15)

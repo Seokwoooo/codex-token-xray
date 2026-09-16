@@ -10,11 +10,24 @@ Codex native skills: `~/.codex/skills/.system`, `~/.codex/plugins/cache`,
 `/etc/codex/skills`, copies of those skills under user folders and anything with
 an OpenAI copyright notice. `apply.py` refuses them. Do not work around it.
 
-## Editable with a caveat
+## Maintained elsewhere
 
-Skills installed from GitHub through `npx skills add` or a similar installer are
-editable. Tell the user that reinstalling or updating that skill overwrites the
-edit and that the sealed backup keeps the original bytes.
+Skills installed from GitHub, copied from openai/skills or pointing contributors
+to another repository are maintained by someone else. Their authors tune the
+text across models and `npx skills update` overwrites local edits, so do not
+edit them in place. Three options, in order:
+
+1. Keep it. A body is read only when the skill is used, which is the design.
+2. Disable it when the scanned sessions never read it: put the exact SKILL.md
+   path in the plan's `disable` list. The helper appends a `[[skills.config]]`
+   entry to config.toml with a backup.
+3. Fork it when it is long and used every day: put it in the plan's `fork` list
+   with a new hyphen-case name and the trimmed body. The copy lands under
+   `~/.agents/skills/<name>/`, the original stays untouched, and the note in the
+   result says to disable the original once the fork is confirmed.
+
+`allow_upstream: true` in the plan overrides the in-place refusal. Use it only
+when the user has said so for that skill and understands the update caveat.
 
 ## Descriptions
 
@@ -46,11 +59,15 @@ Drop instructions written for an older model only after checking their purpose.
     {"path": "/abs/skill/SKILL.md", "sha256": "<from report>", "body": "...", "reason": "..."},
     {"path": "/abs/project/AGENTS.md", "sha256": "<from report>", "content": "...", "reason": "..."}
   ],
-  "create": [{"path": "/abs/skill/references/topic.md", "content": "..."}]
+  "create": [{"path": "/abs/skill/references/topic.md", "content": "..."}],
+  "fork": [{"path": "/abs/upstream/SKILL.md", "name": "upstream-lite", "body": "...", "reason": "..."}],
+  "disable": ["/abs/unused/SKILL.md"],
+  "allow_upstream": false
 }
 ```
 
-One field per edit. `sha256` comes from `skills.inventory` in the report or from
+One field per edit. The same path cannot appear twice in `edits`; change the
+description and the body in two plans. `sha256` comes from `skills.inventory` in the report or from
 hashing the file. Created files must sit inside a skill folder edited in the same
 plan. Preview with `apply.py --plan <plan>`, then `--apply`. The helper backs up,
 writes, verifies the bytes and seals the backup; on any failure it rolls back

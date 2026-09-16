@@ -35,8 +35,13 @@ This is what it found in 12 real sessions on one Mac.
 - The project's AGENTS.md
 
 It shows the diff before changing anything and asks. It makes a zip backup and
-you can undo at any time. Installed skills like Playwright are included. A
-reinstall overwrites the edit, so the backup keeps the original.
+you can undo at any time.
+
+Skills made by other people, whether installed from GitHub or copied from
+openai/skills, are not edited in place. Their authors keep tuning them and an
+update would overwrite the edit. The report shows which of them your sessions
+never read so you can switch those off, and a skill you use every day can be
+forked under a new name with a shorter body while the original stays as is.
 
 ## What it never touches
 

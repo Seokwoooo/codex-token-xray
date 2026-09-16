@@ -37,19 +37,21 @@ present an estimate as a measurement.
 
 ## Trim
 
-Read [references/trim.md](references/trim.md). Edit only what the report lists as
-editable. Codex native skills are never edited: bundled `.system` skills, plugin
-caches, admin skills and copies of them. Skills installed from GitHub such as
-Playwright or Superpowers are editable; say that a reinstall will overwrite the
-edit and that the backup keeps the original.
+Read [references/trim.md](references/trim.md). Codex native skills are never
+edited: bundled `.system` skills, plugin caches, admin skills and copies of them.
+Skills maintained elsewhere, installed from GitHub or copied from openai/skills,
+are not edited in place either: keep them, disable the ones the sessions never
+read, or fork one under a new name and disable the original. Only skills the user
+wrote get their descriptions and bodies trimmed by default.
 
 Write a plan file outside the repository, preview with `apply.py --plan <plan>`,
 then run the same command with `--apply` once authorized. The helper refuses
-native paths, checks file hashes, backs up, writes, verifies and seals. Show the
-diffs. Record every candidate as changed, kept with a reason or skipped.
+native paths and in-place edits of upstream skills, checks file hashes, backs up,
+writes, verifies and seals. Show the diffs. Record every candidate as changed,
+kept with a reason, forked, disabled or skipped.
 
 Do not change the model, effort, approval, sandbox, hooks, MCP or credentials.
-Do not disable, move or rename skills.
+Disable only the skills the user chose. Never move or rename an existing skill.
 
 ## Restore
 

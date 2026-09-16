@@ -13,12 +13,17 @@ import json
 import re
 from pathlib import Path
 
+from .constants import OPENAI_CURATED_SKILLS
 from .frontmatter import read_skill
 from .paths import is_within, local_key, path_key
 
 NATIVE_MARKERS = ("/skills/.system/", "/plugins/cache/")
 ADMIN_ROOT = "/etc/codex/skills"
 OPENAI_COPYRIGHT = re.compile(r"(?im)^.*copyright[^\n]*\bOpenAI\b")
+PUBLISHER_COPYRIGHT = re.compile(r"(?im)^.*copyright[^\n]*\b(Microsoft|Anthropic|Vercel|Google|Meta)\b")
+COMMUNITY_REPO = re.compile(
+    r"(?im)^\s*(?:[-*]\s*)?(?:open an issue|report (?:issues|bugs)|contribut\w*|repository|repo|source|upstream|homepage|license)\s*[:(]?[^\n]{0,80}?(https?://github\.com/[\w.-]+/[\w.-]+)"
+)
 
 
 def _json(path: Path) -> dict:
@@ -92,6 +97,10 @@ def classify(path: Path, home: Path, natives: set[str] | None = None) -> dict:
         lock, source = next(iter(locks.items()))
         return {"kind": "editable", "editable": True, "provenance": "upstream", "source": source,
                 "caveat": f"Installed from {source}. Reinstalling overwrites local edits; the backup keeps the original."}
+    upstream = _upstream_evidence(path, name, info)
+    if upstream:
+        return {"kind": "editable", "editable": True, "provenance": "upstream", "source": upstream[1],
+                "caveat": f"{upstream[0]} Reinstalling overwrites local edits; disable it or fork it under a new name instead."}
     for parent in resolved.parents:
         if (parent / ".git").exists():
             if not is_within(str(path), str(parent)):
@@ -99,6 +108,32 @@ def classify(path: Path, home: Path, natives: set[str] | None = None) -> dict:
                         "source": str(parent), "caveat": f"Linked from the checkout {parent}. Edits land in that checkout."}
             break
     return {"kind": "editable", "editable": True, "provenance": "local", "source": None, "caveat": None}
+
+
+def _upstream_evidence(path: Path, name: str, info: dict):
+    """Maintained-elsewhere signs for skills installed without a lock record."""
+    if name in OPENAI_CURATED_SKILLS or path.parent.name in OPENAI_CURATED_SKILLS:
+        return ("OpenAI curated skill (github.com/openai/skills).", "openai/skills")
+    licence = next((path.parent / n for n in ("LICENSE", "LICENSE.txt", "LICENSE.md", "NOTICE", "NOTICE.txt")
+                    if (path.parent / n).is_file()), None)
+    if licence is not None:
+        try:
+            text = licence.read_text(encoding="utf-8-sig", errors="replace")[:16000]
+        except OSError:
+            text = ""
+        match = PUBLISHER_COPYRIGHT.search(text)
+        if match:
+            return (f"{match.group(1)} copyright notice in {licence.name}.", match.group(1))
+        if (path.parent / "agents" / "openai.yaml").is_file() and "Apache License" in text[:200]:
+            return (f"Apache licence file plus agents/openai.yaml, the layout of an installed OpenAI skill.", None)
+    try:
+        body = path.read_text(encoding="utf-8-sig", errors="replace")[:20000]
+    except OSError:
+        body = ""
+    match = COMMUNITY_REPO.search(body)
+    if match:
+        return (f"Points contributors to {match.group(1)}.", match.group(1))
+    return None
 
 
 def is_native_path(path: str, home: Path, natives: set[str] | None = None) -> bool:
