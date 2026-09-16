@@ -13,7 +13,7 @@ import json
 import re
 from pathlib import Path
 
-from .constants import OPENAI_CURATED_SKILLS
+from .constants import ANTHROPIC_SKILLS, OPENAI_CURATED_SKILLS
 from .frontmatter import read_skill
 from .paths import is_within, local_key, path_key
 
@@ -81,6 +81,11 @@ def classify(path: Path, home: Path, natives: set[str] | None = None) -> dict:
                 "source": None, "caveat": "Codex native skill. Never edited."}
     info = read_skill(path)
     name = info["name"]
+    locks = lock_sources(path)
+    if locks:
+        lock, source = next(iter(locks.items()))
+        return {"kind": "editable", "editable": True, "provenance": "upstream", "source": source,
+                "caveat": f"Installed from {source}. Reinstalling overwrites local edits; the backup keeps the original."}
     if natives and (name in natives or path.parent.name in natives):
         return {"kind": "native", "editable": False, "provenance": "native-copy",
                 "source": None, "caveat": f"Copy of the Codex native skill '{name}'. Never edited."}
@@ -92,11 +97,6 @@ def classify(path: Path, home: Path, natives: set[str] | None = None) -> dict:
         if OPENAI_COPYRIGHT.search(text):
             return {"kind": "native", "editable": False, "provenance": "openai-copyright",
                     "source": None, "caveat": f"OpenAI copyright notice in {candidate.name}. Never edited."}
-    locks = lock_sources(path)
-    if locks:
-        lock, source = next(iter(locks.items()))
-        return {"kind": "editable", "editable": True, "provenance": "upstream", "source": source,
-                "caveat": f"Installed from {source}. Reinstalling overwrites local edits; the backup keeps the original."}
     upstream = _upstream_evidence(path, name, info)
     if upstream:
         return {"kind": "editable", "editable": True, "provenance": "upstream", "source": upstream[1],
@@ -114,6 +114,8 @@ def _upstream_evidence(path: Path, name: str, info: dict):
     """Maintained-elsewhere signs for skills installed without a lock record."""
     if name in OPENAI_CURATED_SKILLS or path.parent.name in OPENAI_CURATED_SKILLS:
         return ("OpenAI curated skill (github.com/openai/skills).", "openai/skills")
+    if name in ANTHROPIC_SKILLS or path.parent.name in ANTHROPIC_SKILLS:
+        return ("Anthropic skill (github.com/anthropics/skills).", "anthropics/skills")
     licence = next((path.parent / n for n in ("LICENSE", "LICENSE.txt", "LICENSE.md", "NOTICE", "NOTICE.txt")
                     if (path.parent / n).is_file()), None)
     if licence is not None:

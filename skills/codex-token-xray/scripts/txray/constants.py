@@ -69,3 +69,10 @@ notion-research-documentation notion-spec-to-implementation openai-docs pdf play
 playwright render-deploy screenshot security-best-practices security-ownership-map security-threat-model
 sentry speech transcribe vercel-deploy winui-app yeet
 """.split())
+
+# github.com/anthropics/skills, skills/ on 2026-09-16. Copied by hand these carry no lock record either.
+ANTHROPIC_SKILLS = frozenset("""
+academy-guide algorithmic-art brand-guidelines canvas-design claude-api discernment-nudge doc-coauthoring docx
+frontend-design internal-comms mcp-builder pdf pptx skill-creator slack-gif-creator theme-factory
+web-artifacts-builder webapp-testing xlsx
+""".split())

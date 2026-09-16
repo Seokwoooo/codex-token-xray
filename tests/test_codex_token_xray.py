@@ -237,6 +237,18 @@ class UpstreamPolicy(Fixture):
         self.assertEqual(result["provenance"], "upstream")
         self.assertIn("github.com/someone/claude-skills", result["source"])
         self.assertEqual(native.classify(self.skill("mine"), self.home, names)["provenance"], "local")
+        anthropic = self.skill("frontend-design", parent=self.home / "skills")
+        self.assertEqual(native.classify(anthropic, self.home, names)["source"], "anthropics/skills")
+
+    def test_lock_record_beats_a_name_shared_with_a_plugin_skill(self):
+        plugin = self.skill("remotion-best-practices", parent=self.home / "plugins" / "cache" / "m" / "remotion" / "1.0" / "skills")
+        installed = self.skill("remotion-best-practices")
+        lock = self.user / ".agents" / ".skill-lock.json"
+        lock.write_text(json.dumps({"skills": {"remotion-best-practices": {"source": "remotion-dev/skills"}}}))
+        names = native.native_names(self.home)
+        self.assertEqual(native.classify(plugin, self.home, names)["kind"], "native")
+        result = native.classify(installed, self.home, names)
+        self.assertEqual((result["provenance"], result["source"]), ("upstream", "remotion-dev/skills"))
 
     def test_upstream_body_edit_needs_allow_flag_and_fork_works(self):
         upstream = self.skill("diagnosing-bugs", body="Long body.\n" * 300)
