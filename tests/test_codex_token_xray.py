@@ -20,6 +20,7 @@ import restore  # noqa: E402
 import xray  # noqa: E402
 from txray import archive, budget, config, native, rollout, usage  # noqa: E402
 from txray.frontmatter import read_skill, replace_body  # noqa: E402
+from txray.paths import local_key  # noqa: E402
 
 
 class Fixture(unittest.TestCase):
@@ -276,8 +277,10 @@ class UpstreamPolicy(Fixture):
         self.assertEqual(code, 0, result)
         text = (self.home / "config.toml").read_text()
         self.assertIn("[[skills.config]]", text)
-        self.assertIn(str(upstream), text)
         self.assertIn("enabled = false", text)
+        rules = config.get(config.load_config(self.home), "skills.config")
+        self.assertEqual([local_key(r["path"]) for r in rules], [local_key(str(upstream))])  # TOML-escaped on Windows
+        self.assertFalse(rules[0]["enabled"])
         plan_path.write_text(json.dumps({"disable": [str(native_skill)]}))
         code, result = self.invoke(apply, "--plan", str(plan_path), "--codex-home", str(self.home))
         self.assertEqual(code, 1)
